@@ -15,10 +15,6 @@ def predict():
         
         features = np.array(data['features']).reshape(1, -1)  
 
-        with open('model.pkl', 'rb') as f:
-            model = pickle.load(f)
-
-        # Make a prediction
         prediction = model.predict(features)
 
         return jsonify({'prediction': prediction.tolist()})
