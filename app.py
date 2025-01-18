@@ -9,22 +9,27 @@ import torch.optim as optim
 import torch.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader, random_split, ConcatDataset
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 import joblib
+import schedule
+import time
+
+import pandas as pd
 import numpy as np
+
+from backend.ArtificialIntelligence.ml import LSTMRegression, LSTMdataset
 
 
 app = Flask(__name__)
 
-@__cached__
 def load_models():
     lstm = torch.load(r"backend\ArtificialIntelligence\predictors\model")
-
     scaler = joblib.load(r"backend\ArtificialIntelligence\scalers\scaler.pkl")
-
     return lstm, scaler
 
 lstm, scaler = load_models()
-
+lstm = lstm.to(device)
 
 def calculate_rsi(data, window=14):
     delta = data.diff()
@@ -34,77 +39,65 @@ def calculate_rsi(data, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-
-class LSTMdataset(Dataset):
-    def __init__(self, data, sequence_length, output_length):
-        self.data = data
-        self.data_values = self.data.values
-        self.targetIDX = data.columns.get_loc('RSI')
-        self.sequence_length = sequence_length
-        self.output_length = output_length
-        self.sample_length = sequence_length + output_length
-        
-        self.valid_indices = []
-        for i in range(len(self.data) - self.sample_length + 1): 
-            self.valid_indices.append(i)
-
-    def __len__(self):
-        return len(self.valid_indices)
-    
-    def __getitem__(self, idx):
-        if idx >= len(self.valid_indices):
-            raise IndexError("Index out of bounds")
-        
-        dayIDX = self.valid_indices[idx]
-        
-        history = self.data_values[dayIDX:dayIDX + self.sequence_length]
-        forecast = self.data_values[dayIDX + self.sequence_length:dayIDX + self.sample_length, self.targetIDX]
-        
-        if len(history) != self.sequence_length or len(forecast) != self.output_length:
-            raise ValueError(f"Inconsistent sequence length at index {idx}")
-
-        history = torch.tensor(history, dtype=torch.float32)
-        forecast = torch.tensor(forecast, dtype=torch.float32)
-
-        return history, forecast
-
-
-@app.route('/')
-def home():
-    return 'Welcome to the Prediction API!'
-    
-
-@app.route('/predict', methods=['POST']) 
 def predict():
-    today = str(datetime.today()).split()[0] # grabbing todays date
-    sixty_days_ago = (datetime.today() - timedelta(days=59)).strftime('%Y-%m-%d') # Grab 59 days prior inclusive len = 60
+    today = str(datetime.today()).split()[0]
+    sixty_days_ago = (datetime.today() - timedelta(days=73)).strftime('%Y-%m-%d')
 
-    predictor = torch.load(r"backend\ArtificialIntelligence\predictors\model")
-
-    soxx_data = yf.download(tickers=["SOOX"], start=sixty_days_ago, end=today)
-
+    soxx_data = yf.download(tickers=["SOXX"], start=sixty_days_ago, end=today)
     soxx_data.reset_index()
 
     soxx_data['RSI'] = calculate_rsi(soxx_data['Close'], window=14)
     soxx_data['Return'] = ((soxx_data['Close'] - soxx_data['Open']) / soxx_data['Open'])
     soxx_data = soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']]
 
+    # Drop rows where RSI is NaN (First 14 rows will have NaN RSI)
+    print(soxx_data)
+    print(soxx_data.columns)
+    soxx_data = soxx_data.dropna()
 
+    if len(soxx_data) < 60:
+        return jsonify({'error': 'Not enough valid data for RSI'})
 
+    soxx_data_scaled = scaler.transform(soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']])
 
-
-
-    try:
-        data = request.get_json()
-        
-        features = np.array(data['features']).reshape(1, -1)  
-
-        prediction = model.predict(features)
-
-        return jsonify({'prediction': prediction.tolist()})
+    soxx_data_scaled = pd.DataFrame(soxx_data_scaled, columns=soxx_data.columns)
     
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+    soxx_data_scaled = soxx_data_scaled.iloc[-60:]
+
+    lstm_dataset = LSTMdataset(soxx_data_scaled, sequence_length=60, output_length=5)
+    lstm_dataloader = DataLoader(lstm_dataset, batch_size=1)
+    
+    predictions = []
+    with torch.no_grad():
+        for x_batch, y_batch in lstm_dataloader:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
+            print(x_batch.shape)
+            prediction = np.squeeze(lstm(x_batch).cpu().numpy())
+            predictions.append(prediction)
+
+    rsi_scale = scaler.scale_[6]
+    rsi_mean = scaler.mean_[6]
+    unscaled_predictions = (np.array(predictions).flatten() * rsi_scale) + rsi_mean
+
+    print(unscaled_predictions)
+
+    return jsonify({'prediction': unscaled_predictions.tolist()})
+
+def run_daily_prediction():
+
+    with app.app_context():  
+        predict()
+
+# Schedule the task to run every day at a set time, e.g., 8:00 AM
+# schedule.every().day.at("08:00").do(run_daily_prediction)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    with app.app_context():  # Make sure we are within the application context
+        print("Starting prediction...")
+        predict()
+
+    # Uncomment the following to enable daily scheduling
+    # print("Starting scheduler...")
+    # while True:
+    #     schedule.run_pending()
+    #     time.sleep(1)  # Wait for a second before checking again
