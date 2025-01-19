@@ -40,16 +40,19 @@ class LSTMRegression(nn.Module):
 class LSTMdataset(Dataset):
     def __init__(self, data, sequence_length, output_length):
         self.data = data
+        #print(f"Data: {self.data}")
+        #print(f"Length of Data {len(self.data)}")
         self.data_values = self.data.values
         self.targetIDX = data.columns.get_loc('RSI')
         self.sequence_length = sequence_length
         self.output_length = output_length
         self.sample_length = sequence_length + output_length
         
+        
         self.valid_indices = []
         for i in range(len(self.data) - self.sample_length + 1): 
             self.valid_indices.append(i)
-
+        #print(self.valid_indices)
     def __len__(self):
         return len(self.valid_indices)
     

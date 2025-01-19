@@ -39,11 +39,14 @@ def calculate_rsi(data, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+@app.route("/predict", methods=["POST"])
 def predict():
-    today = str(datetime.today()).split()[0]
-    sixty_days_ago = (datetime.today() - timedelta(days=73)).strftime('%Y-%m-%d')
-
-    soxx_data = yf.download(tickers=["SOXX"], start=sixty_days_ago, end=today)
+    today = datetime.today()
+    #print(today)
+    start_date = (today - timedelta(days=200)).strftime('%Y-%m-%d')
+    #print(start_date)
+    soxx_data = yf.download(tickers=["SOXX"], start=start_date, end=today)
+    #print(len(soxx_data))
     soxx_data.reset_index()
 
     soxx_data['RSI'] = calculate_rsi(soxx_data['Close'], window=14)
@@ -51,27 +54,28 @@ def predict():
     soxx_data = soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']]
 
     # Drop rows where RSI is NaN (First 14 rows will have NaN RSI)
-    print(soxx_data)
-    print(soxx_data.columns)
+    #print(f"TRhe lengh of soxx data: {len(soxx_data)}")
+    #print(soxx_data.columns)
     soxx_data = soxx_data.dropna()
 
-    if len(soxx_data) < 60:
-        return jsonify({'error': 'Not enough valid data for RSI'})
+    #if len(soxx_data) < 60:
+    #    return jsonify({'error': 'Not enough valid data for RSI'})
 
     soxx_data_scaled = scaler.transform(soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']])
 
     soxx_data_scaled = pd.DataFrame(soxx_data_scaled, columns=soxx_data.columns)
     
-    soxx_data_scaled = soxx_data_scaled.iloc[-60:]
+    soxx_data_scaled = soxx_data_scaled.iloc[-65:]
 
     lstm_dataset = LSTMdataset(soxx_data_scaled, sequence_length=60, output_length=5)
     lstm_dataloader = DataLoader(lstm_dataset, batch_size=1)
-    
+    #print(f"length of lstm dataset: {len(lstm_dataset)}")
     predictions = []
     with torch.no_grad():
         for x_batch, y_batch in lstm_dataloader:
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)
-            print(x_batch.shape)
+            #print("HERE")
+            #print(x_batch.shape)
             prediction = np.squeeze(lstm(x_batch).cpu().numpy())
             predictions.append(prediction)
 
@@ -84,7 +88,6 @@ def predict():
     return jsonify({'prediction': unscaled_predictions.tolist()})
 
 def run_daily_prediction():
-
     with app.app_context():  
         predict()
 
