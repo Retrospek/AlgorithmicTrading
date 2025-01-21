@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSI Forecaster</title>
+    <style>
+        #prediction-chart {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .graph-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .green-btn {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .green-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>RSI Forecaster</h1>
+        <p>Your Trusted Application for RSI Trend Predictions</p>
+    </header>
+
+    <div class="container">
+        <div class="intro">
+            <h2>Welcome to the RSI Forecaster!</h2>
+            <p>
+                This application provides accurate and real-time RSI (Relative Strength Index) predictions to help you make informed financial decisions. Explore our powerful tools and insights to stay ahead of the market trends.
+            </p>
+        </div>
+
+        <div class="cta-buttons">
+            <form id="prediction-form">
+                <button type="submit" class="green-btn">Get RSI Prediction</button>
+            </form>
+            <button id="view-graph-btn" class="green-btn hidden">View Graph</button>
+        </div>
+
+        <div id="result"></div>
+        <div class="graph-container">
+            <img id="prediction-chart" class="hidden" alt="RSI Prediction Graph">
+        </div>
+    </div>
+
+    <footer>
+        <p>
+            <a href="#">Privacy Policy</a>
+        </p>
+    </footer>
+
+    <script>
+        const form = document.getElementById('prediction-form');
+        const resultDiv = document.getElementById('result');
+        const viewGraphBtn = document.getElementById('view-graph-btn');
+        const predictionChart = document.getElementById('prediction-chart');
+        let predictionData;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            resultDiv.innerHTML = "Fetching predictions...";
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch prediction data');
+                }
+
+                const data = await response.json();
+                predictionData = data.prediction;
+
+                // Format the prediction numbers to 2 decimal places
+                const formattedPredictions = predictionData.map(val => 
+                    Number(val).toFixed(2)).join(', ');
+                
+                resultDiv.innerHTML = `
+                    <strong>RSI Predictions for Next 5 Days:</strong><br>
+                    ${formattedPredictions}
+                `;
+
+                // Show the view graph button
+                viewGraphBtn.classList.remove('hidden');
+                
+                // Hide the chart if it was previously shown
+                predictionChart.classList.add('hidden');
+            } catch (error) {
+                resultDiv.innerHTML = `<strong style="color: red;">Error:</strong> ${error.message}`;
+            }
+        });
+
+        viewGraphBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/plot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prediction: predictionData })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate graph');
+                }
+
+                const blob = await response.blob();
+                const imageUrl = URL.createObjectURL(blob);
+
+                // Update the image source and show it
+                predictionChart.src = imageUrl;
+                predictionChart.classList.remove('hidden');
+
+                // Clean up the object URL after the image loads
+                predictionChart.onload = () => URL.revokeObjectURL(imageUrl);
+
+                // Scroll to the chart
+                predictionChart.scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                resultDiv.innerHTML += `<br><strong style="color: red;">Error:</strong> ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

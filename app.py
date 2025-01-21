@@ -1,4 +1,7 @@
-from flask import Flask, request, jsonify
+import io
+from flask import Flask, request, jsonify, render_template, send_file
+from flask_cors import CORS
+
 import pickle
 from datetime import datetime, timedelta
 import yfinance as yf
@@ -15,10 +18,12 @@ import time
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from backend.ArtificialIntelligence.ml import LSTMRegression, LSTMdataset
 
 app = Flask(__name__)
+CORS(app)
 
 def load_models():
     """Load LSTM model and scaler from files."""
@@ -41,11 +46,9 @@ def calculate_rsi(data, window=14):
 @app.route('/')
 @app.route('/home')
 def home():
-    "Home page initialization"
+    return render_template(r"home.html")
 
-    
-
-@app.route("/predict", methods=["POST"])
+@app.route("/predict", methods=["GET"])
 def predict():
     """
     Perform LSTM predictions for the given stock data.
@@ -62,21 +65,22 @@ def predict():
     soxx_data = soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']]
     soxx_data = soxx_data.dropna()  # Drop rows with NaN values
 
-    if len(soxx_data) < 65:
+    if len(soxx_data) < 60:
         return jsonify({'error': 'Not enough data for prediction'})
 
     # Scale data
     soxx_data_scaled = scaler.transform(soxx_data)
     soxx_data_scaled = pd.DataFrame(soxx_data_scaled, columns=soxx_data.columns)
-    soxx_data_scaled = soxx_data_scaled.iloc[-65:]
+    soxx_data_scaled = soxx_data_scaled.iloc[-60:] # Last 60 days worth of data and then it outputs the next 5 days
 
     # Create LSTM dataset
-    lstm_dataset = LSTMdataset(soxx_data_scaled, sequence_length=60, output_length=5)
+    lstm_dataset = LSTMdataset(soxx_data_scaled, sequence_length=60)
+    print(f"Length of LSTM Dataset: {len(lstm_dataset)}")
     lstm_dataloader = DataLoader(lstm_dataset, batch_size=1)
 
     predictions = []
     with torch.no_grad():
-        for x_batch, _ in lstm_dataloader:
+        for x_batch in lstm_dataloader:
             x_batch = x_batch.to(device)
             prediction = lstm(x_batch).cpu().numpy().squeeze()
             predictions.append(prediction)
@@ -86,6 +90,46 @@ def predict():
     unscaled_predictions = (np.array(predictions).flatten() * rsi_scale) + rsi_mean
 
     return jsonify({'prediction': unscaled_predictions.tolist()})
+
+@app.route('/plot', methods=['POST'])
+def plot():
+    prediction_data = request.json.get('prediction')  
+    
+    if not prediction_data:
+        return jsonify({'error': 'No prediction data provided'}), 400
+    
+    plt.figure(figsize=(10, 6), dpi=100)
+    
+    plt.style.use('seaborn')
+    plt.plot(range(1, len(prediction_data) + 1), prediction_data, 
+            marker='o', 
+            linestyle='-', 
+            linewidth=2, 
+            color='#2196F3')
+    
+    plt.title('RSI Prediction Trend Analysis', fontsize=14, pad=20)
+    plt.xlabel('Days', fontsize=12)
+    plt.ylabel('RSI Value', fontsize=12)
+    
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    plt.axhline(y=70, color='#FF5252', linestyle='--', alpha=0.5, label='Overbought (70)')
+    plt.axhline(y=30, color='#4CAF50', linestyle='--', alpha=0.5, label='Oversold (30)')
+    
+    plt.legend(['Predicted RSI', 'Overbought Level', 'Oversold Level'], 
+              loc='best', 
+              frameon=True)
+    
+    plt.tight_layout()
+    
+    # Save plot to a BytesIO object with higher quality
+    img = io.BytesIO()
+    plt.savefig(img, format='png', bbox_inches='tight', dpi=100)
+    img.seek(0)
+    
+    return send_file(img, mimetype='image/png')
+
+
 
 def daily_prediction():
     """Perform daily prediction and save or log results."""
@@ -104,7 +148,3 @@ if __name__ == '__main__':
     # Run the Flask app
     app.run(debug=True)
 
-    # Uncomment to enable daily scheduling
-    # while True:
-    #     schedule.run_pending()
-    #     time.sleep(1)  # Check schedule every second

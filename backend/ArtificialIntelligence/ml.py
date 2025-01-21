@@ -38,15 +38,14 @@ class LSTMRegression(nn.Module):
     
 
 class LSTMdataset(Dataset):
-    def __init__(self, data, sequence_length, output_length):
+    def __init__(self, data, sequence_length):
         self.data = data
         #print(f"Data: {self.data}")
         #print(f"Length of Data {len(self.data)}")
         self.data_values = self.data.values
         self.targetIDX = data.columns.get_loc('RSI')
         self.sequence_length = sequence_length
-        self.output_length = output_length
-        self.sample_length = sequence_length + output_length
+        self.sample_length = sequence_length 
         
         
         self.valid_indices = []
@@ -63,12 +62,7 @@ class LSTMdataset(Dataset):
         dayIDX = self.valid_indices[idx]
         
         history = self.data_values[dayIDX:dayIDX + self.sequence_length]
-        forecast = self.data_values[dayIDX + self.sequence_length:dayIDX + self.sample_length, self.targetIDX]
-        
-        if len(history) != self.sequence_length or len(forecast) != self.output_length:
-            raise ValueError(f"Inconsistent sequence length at index {idx}")
 
         history = torch.tensor(history, dtype=torch.float32)
-        forecast = torch.tensor(forecast, dtype=torch.float32)
 
-        return history, forecast
+        return history
