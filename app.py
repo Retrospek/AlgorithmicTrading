@@ -56,7 +56,7 @@ def predict():
     """
     today = datetime.today()
     start_date = (today - timedelta(days=200)).strftime('%Y-%m-%d')
-
+    
     soxx_data = yf.download(tickers=["SOXX"], start=start_date, end=today)
     soxx_data.reset_index()
 
