@@ -100,7 +100,6 @@ def plot():
     
     plt.figure(figsize=(10, 6), dpi=100)
     
-    plt.style.use('seaborn')
     plt.plot(range(1, len(prediction_data) + 1), prediction_data, 
             marker='o', 
             linestyle='-', 

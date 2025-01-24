@@ -5,39 +5,120 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSI Forecaster</title>
     <style>
-        #prediction-chart {
-            width: 100%;
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #1e1e2f;
+            color: #d4d4dc;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+
+        header {
+            padding: 20px;
+            background: #29294b;
+            color: #72d7ff;
+            font-size: 1.2em;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin: 0;
+        }
+
+        header p {
+            margin: 5px 0 0;
+            font-size: 1em;
+        }
+
+        .container {
             max-width: 800px;
-            margin: 20px auto;
+            margin: 30px auto;
+            padding: 20px;
+            background: #2b2b45;
+            color: #c0c0c7;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .intro h2 {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+        }
+
+        .intro p {
+            font-size: 1em;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 10px;
+            font-size: 1em;
+            background: #3b3b6b;
+            color: #72d7ff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s, transform 0.2s, box-shadow 0.3s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            background: #50507e;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
         }
 
         .hidden {
             display: none;
         }
 
-        .container {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
         .graph-container {
             margin-top: 20px;
-            text-align: center;
         }
 
-        .green-btn {
-            padding: 10px 20px;
-            margin: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+        #prediction-chart {
+            width: 100%;
+            max-width: 700px;
+            margin: 20px auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 0.5s ease, transform 0.5s ease;
         }
 
-        .green-btn:hover {
-            background-color: #45a049;
+        #prediction-chart.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        footer {
+            margin-top: 20px;
+            padding: 10px;
+            background: #29294b;
+            color: #72d7ff;
+            font-size: 0.9em;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        footer a {
+            color: #72d7ff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        footer a:hover {
+            color: #a3e5ff;
         }
     </style>
 </head>
@@ -51,15 +132,15 @@
         <div class="intro">
             <h2>Welcome to the RSI Forecaster!</h2>
             <p>
-                This application provides accurate and real-time RSI (Relative Strength Index) predictions to help you make informed financial decisions. Explore our powerful tools and insights to stay ahead of the market trends.
+                This application provides accurate and real-time RSI (Relative Strength Index) predictions to help you make informed financial decisions.
             </p>
         </div>
 
         <div class="cta-buttons">
             <form id="prediction-form">
-                <button type="submit" class="green-btn">Get RSI Prediction</button>
+                <button type="submit">Get RSI Prediction</button>
             </form>
-            <button id="view-graph-btn" class="green-btn hidden">View Graph</button>
+            <button id="view-graph-btn" class="hidden">View Graph</button>
         </div>
 
         <div id="result"></div>
@@ -67,12 +148,6 @@
             <img id="prediction-chart" class="hidden" alt="RSI Prediction Graph">
         </div>
     </div>
-
-    <footer>
-        <p>
-            <a href="#">Privacy Policy</a>
-        </p>
-    </footer>
 
     <script>
         const form = document.getElementById('prediction-form');
@@ -83,7 +158,7 @@
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            resultDiv.innerHTML = "Fetching predictions...";
+            resultDiv.innerHTML = "<strong>Fetching predictions...</strong>";
             
             try {
                 const response = await fetch('/predict', {
@@ -98,7 +173,6 @@
                 const data = await response.json();
                 predictionData = data.prediction;
 
-                // Format the prediction numbers to 2 decimal places
                 const formattedPredictions = predictionData.map(val => 
                     Number(val).toFixed(2)).join(', ');
                 
@@ -107,10 +181,7 @@
                     ${formattedPredictions}
                 `;
 
-                // Show the view graph button
                 viewGraphBtn.classList.remove('hidden');
-                
-                // Hide the chart if it was previously shown
                 predictionChart.classList.add('hidden');
             } catch (error) {
                 resultDiv.innerHTML = `<strong style="color: red;">Error:</strong> ${error.message}`;
@@ -132,14 +203,10 @@
                 const blob = await response.blob();
                 const imageUrl = URL.createObjectURL(blob);
 
-                // Update the image source and show it
                 predictionChart.src = imageUrl;
                 predictionChart.classList.remove('hidden');
-
-                // Clean up the object URL after the image loads
+                predictionChart.classList.add('visible');
                 predictionChart.onload = () => URL.revokeObjectURL(imageUrl);
-
-                // Scroll to the chart
                 predictionChart.scrollIntoView({ behavior: 'smooth' });
             } catch (error) {
                 resultDiv.innerHTML += `<br><strong style="color: red;">Error:</strong> ${error.message}`;
