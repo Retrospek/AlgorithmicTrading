@@ -20,15 +20,15 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from backend.ArtificialIntelligence.ml import LSTMRegression, LSTMdataset
+from backend.ArtificialIntelligence.models import LSTMdataset, LSTMRegression
 
 app = Flask(__name__)
 CORS(app)
 
 def load_models():
     """Load LSTM model and scaler from files."""
-    lstm = torch.load(r"backend\ArtificialIntelligence\predictors\model")
-    scaler = joblib.load(r"backend\ArtificialIntelligence\scalers\scaler.pkl")
+    lstm = torch.load("backend\\ArtificialIntelligence\\predictors\\model")
+    scaler = joblib.load("backend\\ArtificialIntelligence\\scalers\\scaler.pkl")
     return lstm, scaler
 
 lstm, scaler = load_models()
@@ -62,9 +62,9 @@ def predict():
 
     soxx_data['RSI'] = calculate_rsi(soxx_data['Close'], window=14)
     soxx_data['Return'] = ((soxx_data['Close'] - soxx_data['Open']) / soxx_data['Open'])
-    soxx_data = soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'RSI']]
+    soxx_data['SMA_20'] = soxx_data['Close'].rolling(window=20).mean()
+    soxx_data = soxx_data[['High', 'Low', 'Volume', 'Open', 'Close', 'Return', 'SMA_20', 'RSI']]
     soxx_data = soxx_data.dropna()  # Drop rows with NaN values
-
     if len(soxx_data) < 60:
         return jsonify({'error': 'Not enough data for prediction'})
 
@@ -72,6 +72,7 @@ def predict():
     soxx_data_scaled = scaler.transform(soxx_data)
     soxx_data_scaled = pd.DataFrame(soxx_data_scaled, columns=soxx_data.columns)
     soxx_data_scaled = soxx_data_scaled.iloc[-60:] # Last 60 days worth of data and then it outputs the next 5 days
+    print(len(soxx_data_scaled))
 
     # Create LSTM dataset
     lstm_dataset = LSTMdataset(soxx_data_scaled, sequence_length=60)
@@ -85,8 +86,8 @@ def predict():
             prediction = lstm(x_batch).cpu().numpy().squeeze()
             predictions.append(prediction)
 
-    rsi_scale = scaler.scale_[6]
-    rsi_mean = scaler.mean_[6]
+    rsi_scale = scaler.scale_[7]
+    rsi_mean = scaler.mean_[7]
     unscaled_predictions = (np.array(predictions).flatten() * rsi_scale) + rsi_mean
 
     return jsonify({'prediction': unscaled_predictions.tolist()})
