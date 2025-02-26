@@ -30,10 +30,7 @@ python rsi_strategy.py
 - **Trade Execution:** Uses a rule-based system to enter/exit trades based on RSI thresholds.
 
 ## 📌 Example RSI Chart
-(*Insert an example visualization of RSI vs. price data here.*)
-
-## 🔍 Backtesting Results
-(*Provide a summary of backtesting performance with graphs and key metrics like profit/loss, win rate, and Sharpe ratio.*)
+![RSI Chart](image.png)
 
 ## 📂 Project Structure
 ```
